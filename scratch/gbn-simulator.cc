@@ -48,8 +48,8 @@ main(int argc, char* argv[])
     Ipv4InterfaceContainer interfaces = address.Assign(devices);
 
 
-    LogComponentEnable("GbnReceiver", LOG_LEVEL_INFO);
-    LogComponentEnable("GbnSender", LOG_LEVEL_INFO);
+    LogComponentEnable("GbnReceiver", LOG_LEVEL_DEBUG);
+    LogComponentEnable("GbnSender", LOG_LEVEL_DEBUG);
 
     Ptr<GbnSender> sender = CreateObject<GbnSender>();
     nodes.Get(0)->AddApplication(sender);

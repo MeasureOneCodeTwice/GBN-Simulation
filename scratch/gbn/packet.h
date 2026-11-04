@@ -1,16 +1,17 @@
 #include "ns3/applications-module.h"
 #include "./config.h"
+#include "./sequence-number.h"
 
 using namespace ns3;
 
 
 struct GbnPacket {
-    uint32_t sequenceNumber;
+    SequenceNumber sequenceNumber;
     std::optional<PacketPayload> payload;
 
     GbnPacket();
-    GbnPacket(uint32_t sequenceNumber);
-    GbnPacket(uint32_t sequenceNumber, PacketPayload &&payload);
+    GbnPacket(SequenceNumber);
+    GbnPacket(SequenceNumber, PacketPayload &&payload);
 
     Ptr<Packet> Serialize();
     //damages the given packet

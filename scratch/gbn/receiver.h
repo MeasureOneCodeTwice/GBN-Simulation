@@ -2,6 +2,8 @@
 
 #include "ns3/applications-module.h"
 
+#include "./sequence-number.h"
+
 using namespace ns3;
 
 //based on `examples/tutorial/tutorial-app.h`
@@ -26,6 +28,6 @@ class GbnReceiver : public Application {
     bool m_running;            //!< True if the application is running.
     EventId m_sendEvent;       //!< Send event.
     Ipv4Address m_bindAddress; //!< Address to bind socket to
-    uint32_t m_sequenceNumber; //!< Sequence number of next expected packet.
+    ::SequenceNumber m_sequenceNumber; //!< Sequence number of next expected packet.
 };
 

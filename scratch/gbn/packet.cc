@@ -42,7 +42,7 @@ GbnPacket GbnPacket::Parse(Ptr<Packet> rawPacket) {
 Ptr<Packet> GbnPacket::Serialize() {
     uint8_t buffer[GbnConfig::payloadSize];
 
-    uint32_t networkOrderSequenceNumber = htonl(this->sequenceNumber);
+    uint32_t networkOrderSequenceNumber = htonl(this->sequenceNumber.getValue());
     memcpy(buffer, &networkOrderSequenceNumber, GbnConfig::sequenceNumberSize);
     std::size_t bufferContentLength = GbnConfig::sequenceNumberSize;
     if(this->payload) {
@@ -57,12 +57,12 @@ GbnPacket::GbnPacket()
 {
 }
 
-GbnPacket::GbnPacket(uint32_t sequenceNumber)
+GbnPacket::GbnPacket(SequenceNumber sequenceNumber)
     : sequenceNumber(sequenceNumber)
 {
 }
 
-GbnPacket::GbnPacket(uint32_t sequenceNumber, PacketPayload &&payload)
+GbnPacket::GbnPacket(SequenceNumber sequenceNumber, PacketPayload &&payload)
     : sequenceNumber(sequenceNumber),
       payload(payload)
 {

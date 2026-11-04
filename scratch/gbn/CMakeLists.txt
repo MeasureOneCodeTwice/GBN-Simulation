@@ -5,7 +5,7 @@ project(GbnApplications)
 add_library(GbnApplications)
 target_sources(GbnApplications
     PRIVATE
-      utils.cc
+      sequence-number.cc
       packet.cc
       receiver.cc
       sender.cc

@@ -2,6 +2,8 @@
 
 #include "ns3/applications-module.h"
 
+#include "./sequence-number.h"
+
 using namespace ns3;
 
 //based on `examples/tutorial/tutorial-app.h`
@@ -32,12 +34,11 @@ class GbnSender : public Application {
     void OnRecv(Ptr<Socket> sock);
 
     /// Schedule a new transmission.
-    void ScheduleTx();
+    void ScheduleTx(::SequenceNumber);
     /// Send a packet.
-    void SendPacket();
-    // Sends all packets in the window and retuns
-    // the number of packets sent.
-    int SendPackets();
+    void SendPacket(::SequenceNumber);
+    // Sends all packets in the window from a given point
+    void SendPackets(::SequenceNumber from);
 
     Ptr<Socket> m_socket;   //!< The transmission socket.
     Address m_peer;         //!< The destination address.
@@ -47,8 +48,8 @@ class GbnSender : public Application {
     bool m_running;         //!< True if the application is running.
     uint32_t m_packetsSent; //!< The number of packets sent.
 
-    uint32_t m_baseSequenceNumber;
-    uint32_t m_nextSequenceNumber;
+    ::SequenceNumber m_baseSequenceNumber; //!< Oldest un-acked packet
+    ::SequenceNumber m_nextSequenceNumber; //!< Smallest unused sequence number
 
     struct Metrics {
         uint32_t totalPacketsTransmitted;

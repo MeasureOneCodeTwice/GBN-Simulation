@@ -1,6 +1,5 @@
 #include "./receiver.h"
 #include "./packet.h"
-#include "./utils.h"
 
 #include "ns3/core-module.h"
 #include "ns3/internet-module.h"
@@ -45,7 +44,8 @@ GbnReceiver::Setup(Ipv4Address bindAddress)
 
 void
 GbnReceiver::OnRecv(Ptr<Socket> socket) {
-    Ptr<Packet> rawPacket = socket->Recv();
+    Address senderAddr;
+    Ptr<Packet> rawPacket = socket->RecvFrom(senderAddr);
 
     GbnPacket packet;
     try {
@@ -59,25 +59,25 @@ GbnReceiver::OnRecv(Ptr<Socket> socket) {
     if(packet.sequenceNumber == m_sequenceNumber) {
         std::string message =
             "Successfuly received data packet with sequence number "
-            + std::to_string(packet.sequenceNumber);
+            + packet.sequenceNumber.to_string();
         NS_LOG_INFO(message);
 
-        incrementSequenceNumber(m_sequenceNumber);
+        ++m_sequenceNumber;
     } else {
         std::string message =
             "Received packet with out of order sequence number "
-            + std::to_string(packet.sequenceNumber)
+            + packet.sequenceNumber.to_string()
             + " expected sequence number "
-            + std::to_string(m_sequenceNumber);
+            + m_sequenceNumber.to_string();
 
-        NS_LOG_INFO(message);
+        NS_LOG_DEBUG(message);
     }
 
     //send ACK
     //clear payload
     packet.payload.reset();
-    packet.sequenceNumber = m_sequenceNumber;
-    socket->Send(packet.Serialize());
+    packet.sequenceNumber = m_sequenceNumber - 1;
+    socket->SendTo(packet.Serialize(), 0, senderAddr);
 }
 
 void

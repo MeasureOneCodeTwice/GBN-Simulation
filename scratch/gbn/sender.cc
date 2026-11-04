@@ -1,7 +1,6 @@
 #include "./sender.h"
 #include "./config.h"
 #include "./packet.h"
-#include "./utils.h"
 
 #include "ns3/core-module.h"
 #include "ns3/internet-module.h"
@@ -27,6 +26,7 @@ GbnSender::GbnSender()
       m_baseSequenceNumber(GbnConfig::initialSequenceNumber),
       m_nextSequenceNumber(GbnConfig::initialSequenceNumber)
 {
+    assert(!::SequenceNumber(8).InWindow(9, 0));
 }
 
 GbnSender::~GbnSender()
@@ -69,7 +69,7 @@ GbnSender::StartApplication()
         MakeCallback(&GbnSender::OnRecv, this)
     );
 
-    SendPackets();
+    SendPackets(m_baseSequenceNumber);
 }
 
 void
@@ -88,59 +88,112 @@ GbnSender::StopApplication()
     }
 }
 
-int GbnSender::SendPackets() {
 
-    uint32_t packetsToSend = GbnSenderConfig::windowSize - (m_nextSequenceNumber - m_baseSequenceNumber);
-    assert(packetsToSend > 0);
-    for(uint32_t i = 0; i < packetsToSend; i++) {
-        ScheduleTx();
+
+void GbnSender::SendPackets(::SequenceNumber from) {
+
+    uint32_t count = 0;
+    ::SequenceNumber curr = from;
+    ::SequenceNumber end = m_baseSequenceNumber + GbnSenderConfig::windowSize;
+    std::string message =
+        + " sending packets from "
+        + curr.to_string()
+        + " to "
+        + end.to_string();
+    NS_LOG_DEBUG(message);
+
+    assert(curr != end);
+    while(curr != end) {
+        ScheduleTx(curr);
+        ++curr;
+        ++count;
     }
-
-    return packetsToSend;
+    m_nextSequenceNumber = curr - 1;
+    m_metrics.totalPacketsTransmitted += count;
 }
 
 void
-GbnSender::SendPacket()
+GbnSender::SendPacket(const ::SequenceNumber sequenceNumber)
 {
     auto packet = GbnPacket(
-            m_nextSequenceNumber,
+            sequenceNumber,
             GbnSenderConfig::getPayloadContent()
     ).Serialize();
 
     std::string message =
         "Sending packet with sequence number "
-        + std::to_string(m_nextSequenceNumber);
-    NS_LOG_INFO(message);
+        + sequenceNumber.to_string();
+    NS_LOG_DEBUG(message);
 
     m_socket->Send(packet);
-    m_metrics.totalPacketsTransmitted++;
-
-    incrementSequenceNumber(m_nextSequenceNumber);
 }
 
 void GbnSender::OnRecv(Ptr<Socket> sock) {
     assert(m_socket->GetRxAvailable());
 
-    Ptr<Packet> packet = sock->RecvFrom(this->m_peer);
+    Ptr<Packet> packet = sock->Recv();
     GbnPacket gbnPacket;
     try {
         gbnPacket = GbnPacket::Parse(packet);
 
     } catch(std::runtime_error& e) {
         std::string message = "Dropping packet due to parsing error: ";
-        NS_LOG_ERROR(message + e.what());
+        NS_LOG_INFO(message + e.what());
         return;
     }
 
-    std::cout << "Ack sequence number " << gbnPacket.sequenceNumber << " recvd" << std::endl;
+    bool outOfRangeSequenceNumber = !gbnPacket.sequenceNumber.inWindow(
+        m_baseSequenceNumber,
+        m_nextSequenceNumber
+    );
+    if(outOfRangeSequenceNumber) {
+        std::string message =
+                "Dropping packet with sequence number outside of window ("
+                + gbnPacket.sequenceNumber.to_string()
+                + " is not in "
+                + m_baseSequenceNumber.to_string()
+                + " to "
+                + m_nextSequenceNumber.to_string()
+                + " mod "
+                + std::to_string(GbnConfig::maxSequenceNumber)
+                + ")";
+        NS_LOG_INFO(message);
+        return;
+    }
+
+    std::string message =
+        "Received ack with sequence number "
+        + gbnPacket.sequenceNumber.to_string()
+        + ". Window: ["
+        + m_baseSequenceNumber.to_string()
+        + " -> "
+        + (m_baseSequenceNumber + GbnSenderConfig::windowSize - 1).to_string()
+        + "] (next: "
+        + m_nextSequenceNumber.to_string()
+        + ")";
+
+    NS_LOG_DEBUG(message);
+
+    m_baseSequenceNumber = gbnPacket.sequenceNumber + 1;
+    SendPackets(m_nextSequenceNumber + 1);
+
+    message =
+        "Window is now ["
+        + m_baseSequenceNumber.to_string()
+        + " -> "
+        + (m_baseSequenceNumber + GbnSenderConfig::windowSize - 1).to_string()
+        + "] (next: "
+        + m_nextSequenceNumber.to_string()
+        + ")";
+
+    NS_LOG_DEBUG(message);
 }
 
 void
-GbnSender::ScheduleTx()
+GbnSender::ScheduleTx(const ::SequenceNumber sequenceNumber)
 {
     if (m_running)
     {
-        Time tNext(Seconds(GbnConfig::payloadSize * 8 / static_cast<double>(m_dataRate.GetBitRate())));
-        m_sendEvent = Simulator::Schedule(tNext, &GbnSender::SendPacket, this);
+        m_sendEvent = Simulator::Schedule(Seconds(0), &GbnSender::SendPacket, this, sequenceNumber);
     }
 }

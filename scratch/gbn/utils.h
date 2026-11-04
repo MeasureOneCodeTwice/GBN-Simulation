@@ -2,4 +2,5 @@
 
 #include <stdint.h>
 
-void incrementSequenceNumberBy(uint32_t &number, uint32_t by);
+void incrementSequenceNumber(uint32_t &number);
+bool sequenceNumberInWindow(uint32_t sequenceNumber, uint32_t windowStart, uint32_t windowEnd);

@@ -26,4 +26,6 @@ class GbnReceiver : public Application {
     bool m_running;            //!< True if the application is running.
     EventId m_sendEvent;       //!< Send event.
     Ipv4Address m_bindAddress; //!< Address to bind socket to
+    uint32_t m_sequenceNumber; //!< Sequence number of next expected packet.
 };
+

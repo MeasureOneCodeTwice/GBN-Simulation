@@ -8,25 +8,25 @@
 
 
 class GbnConfig {
-    private:
+    protected:
         static const int studentId = 7966258;
 
     public:
         static const uint32_t port = 30;
-        static constexpr int windowSize = 5 + (studentId % 5);
         static const std::size_t sequenceNumberSize = 4;
         static constexpr uint32_t initialSequenceNumber = (GbnConfig::studentId / 10) % 10; //Second right-most digit of student ID;
         static const uint32_t maxSequenceNumber = 15;
         static const std::size_t payloadSize = 1000; //(application data) + 4 bytes (sequence number);
 };
 
-typedef std::array<uint8_t, ::GbnConfig::payloadSize - ::GbnConfig::sequenceNumberSize> PacketPayload;
+typedef std::array<uint8_t, GbnConfig::payloadSize - GbnConfig::sequenceNumberSize> PacketPayload;
 class GbnSenderConfig : GbnConfig {
     private:
         static constexpr std::string studentName = "Logan";
 
     public:
         static const int retransmissionTimeoutMs = 100;
+        static constexpr int windowSize = 5 + (GbnSenderConfig::studentId % 5);
 
         static constexpr PacketPayload getPayloadContent() {
             const std::size_t nameLength = GbnSenderConfig::studentName.length();
@@ -39,4 +39,4 @@ class GbnSenderConfig : GbnConfig {
         }
 };
 // static_assert(GbnSenderConfig::getPayloadContent().size() + GbnConfig::sequenceNumberSize == GbnConfig::payloadSize);
-static_assert(GbnConfig::windowSize * 2 <= GbnConfig::maxSequenceNumber + 1);
+static_assert(GbnSenderConfig::windowSize * 2 <= GbnConfig::maxSequenceNumber + 1);

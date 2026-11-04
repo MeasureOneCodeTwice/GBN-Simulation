@@ -27,7 +27,6 @@ main(int argc, char* argv[])
 
 
     Time::SetResolution(Time::NS);
-    LogComponentEnable("UdpEchoServerApplication", LOG_LEVEL_INFO);
 
     NodeContainer nodes;
     //Sender: nodes[0], Receiver: nodes[1]
@@ -47,6 +46,10 @@ main(int argc, char* argv[])
     Ipv4AddressHelper address;
     address.SetBase("10.1.1.0", "255.255.255.0");
     Ipv4InterfaceContainer interfaces = address.Assign(devices);
+
+
+    LogComponentEnable("GbnReceiver", LOG_LEVEL_INFO);
+    LogComponentEnable("GbnSender", LOG_LEVEL_INFO);
 
     Ptr<GbnSender> sender = CreateObject<GbnSender>();
     nodes.Get(0)->AddApplication(sender);

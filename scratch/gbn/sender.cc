@@ -7,11 +7,13 @@
 #include "ns3/internet-module.h"
 #include "ns3/network-module.h"
 #include "ns3/applications-module.h"
-#include <memory.h>
 
+#include <memory.h>
 #include <assert.h>
 
 using namespace ns3;
+
+NS_LOG_COMPONENT_DEFINE("GbnSender");
 
 //based on `examples/tutorial/tutorial-app.cc`
 GbnSender::GbnSender()
@@ -21,7 +23,9 @@ GbnSender::GbnSender()
       m_dataRate(0),
       m_sendEvent(),
       m_running(false),
-      m_packetsSent(0)
+      m_packetsSent(0),
+      m_baseSequenceNumber(GbnConfig::initialSequenceNumber),
+      m_nextSequenceNumber(GbnConfig::initialSequenceNumber)
 {
 }
 
@@ -51,8 +55,6 @@ GbnSender::Setup(Ipv4Address address,
     m_peer = InetSocketAddress(address, ::GbnConfig::port);
     m_nPackets = nPackets;
     m_dataRate = dataRate;
-    m_baseSequenceNumber = ::GbnConfig::initialSequenceNumber;
-    m_nextSequenceNumber = ::GbnConfig::initialSequenceNumber;
 }
 
 void
@@ -67,7 +69,7 @@ GbnSender::StartApplication()
         MakeCallback(&GbnSender::OnRecv, this)
     );
 
-    SendPacket();
+    SendPackets();
 }
 
 void
@@ -86,33 +88,50 @@ GbnSender::StopApplication()
     }
 }
 
+int GbnSender::SendPackets() {
+
+    uint32_t packetsToSend = GbnSenderConfig::windowSize - (m_nextSequenceNumber - m_baseSequenceNumber);
+    assert(packetsToSend > 0);
+    for(uint32_t i = 0; i < packetsToSend; i++) {
+        ScheduleTx();
+    }
+
+    return packetsToSend;
+}
+
 void
 GbnSender::SendPacket()
 {
-    //TODO add seq num
     auto packet = GbnPacket(
             m_nextSequenceNumber,
-            ::GbnSenderConfig::getPayloadContent()
+            GbnSenderConfig::getPayloadContent()
     ).Serialize();
 
-    std::cout
-        << "GbnSender sending packet with sequence number"
-        << m_nextSequenceNumber
-        << std::endl;
-    m_socket->Send(packet);
-    incrementSequenceNumberBy(m_nextSequenceNumber, 1u);
+    std::string message =
+        "Sending packet with sequence number "
+        + std::to_string(m_nextSequenceNumber);
+    NS_LOG_INFO(message);
 
-    if (++m_packetsSent < m_nPackets)
-    {
-        ScheduleTx();
-    }
+    m_socket->Send(packet);
+    m_metrics.totalPacketsTransmitted++;
+
+    incrementSequenceNumber(m_nextSequenceNumber);
 }
 
 void GbnSender::OnRecv(Ptr<Socket> sock) {
     assert(m_socket->GetRxAvailable());
 
     Ptr<Packet> packet = sock->RecvFrom(this->m_peer);
-    auto gbnPacket = GbnPacket::Parse(packet);
+    GbnPacket gbnPacket;
+    try {
+        gbnPacket = GbnPacket::Parse(packet);
+
+    } catch(std::runtime_error& e) {
+        std::string message = "Dropping packet due to parsing error: ";
+        NS_LOG_ERROR(message + e.what());
+        return;
+    }
+
     std::cout << "Ack sequence number " << gbnPacket.sequenceNumber << " recvd" << std::endl;
 }
 
@@ -121,7 +140,7 @@ GbnSender::ScheduleTx()
 {
     if (m_running)
     {
-        Time tNext(Seconds(::GbnConfig::payloadSize * 8 / static_cast<double>(m_dataRate.GetBitRate())));
+        Time tNext(Seconds(GbnConfig::payloadSize * 8 / static_cast<double>(m_dataRate.GetBitRate())));
         m_sendEvent = Simulator::Schedule(tNext, &GbnSender::SendPacket, this);
     }
 }

@@ -1,5 +1,6 @@
 #include "./receiver.h"
 #include "./packet.h"
+#include "./utils.h"
 
 #include "ns3/core-module.h"
 #include "ns3/internet-module.h"
@@ -9,10 +10,13 @@
 
 using namespace ns3;
 
+NS_LOG_COMPONENT_DEFINE("GbnReceiver");
+
 GbnReceiver::GbnReceiver()
     : m_socket(nullptr),
       m_running(false),
-      m_sendEvent()
+      m_sendEvent(),
+      m_sequenceNumber(GbnConfig::initialSequenceNumber)
 {
 }
 
@@ -42,17 +46,37 @@ GbnReceiver::Setup(Ipv4Address bindAddress)
 void
 GbnReceiver::OnRecv(Ptr<Socket> socket) {
     Ptr<Packet> rawPacket = socket->Recv();
-    auto packet = ::GbnPacket::Parse(rawPacket);
-    std::cout
-        << "Received message with sequence number "
-        << packet.sequenceNumber
-        << std::endl;
 
+    GbnPacket packet;
+    try {
+        packet = GbnPacket::Parse(rawPacket);
+    } catch(std::runtime_error& e) {
+        std::string message = "Dropping packet due to parsing error: ";
+        NS_LOG_ERROR(message + e.what());
+        return;
+    }
+
+    if(packet.sequenceNumber == m_sequenceNumber) {
+        std::string message =
+            "Successfuly received data packet with sequence number "
+            + std::to_string(packet.sequenceNumber);
+        NS_LOG_INFO(message);
+
+        incrementSequenceNumber(m_sequenceNumber);
+    } else {
+        std::string message =
+            "Received packet with out of order sequence number "
+            + std::to_string(packet.sequenceNumber)
+            + " expected sequence number "
+            + std::to_string(m_sequenceNumber);
+
+        NS_LOG_INFO(message);
+    }
+
+    //send ACK
+    //clear payload
     packet.payload.reset();
-    std::cout
-        << "ACKing"
-        << std::endl;
-
+    packet.sequenceNumber = m_sequenceNumber;
     socket->Send(packet.Serialize());
 }
 
@@ -61,7 +85,7 @@ GbnReceiver::StartApplication()
 {
     m_running = true;
     int status = m_socket->Bind(
-        InetSocketAddress(m_bindAddress, ::GbnConfig::port)
+        InetSocketAddress(m_bindAddress, GbnConfig::port)
     );
     if(status == -1) {
         NS_FATAL_ERROR("Failed to bind socket");

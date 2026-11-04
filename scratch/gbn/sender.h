@@ -35,6 +35,9 @@ class GbnSender : public Application {
     void ScheduleTx();
     /// Send a packet.
     void SendPacket();
+    // Sends all packets in the window and retuns
+    // the number of packets sent.
+    int SendPackets();
 
     Ptr<Socket> m_socket;   //!< The transmission socket.
     Address m_peer;         //!< The destination address.
@@ -46,4 +49,12 @@ class GbnSender : public Application {
 
     uint32_t m_baseSequenceNumber;
     uint32_t m_nextSequenceNumber;
+
+    struct Metrics {
+        uint32_t totalPacketsTransmitted;
+        uint32_t packetRetransmissions;
+        uint32_t timeouts;
+        Time completionTime;
+    };
+    Metrics m_metrics;
 };

@@ -10,11 +10,13 @@
 
 #include "./config.h"
 #include "./gbn/sender.h"
+#include "./gbn/receiver.h"
 
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("GbnNetwork");
 
+//Based on the example `examples/tutorial/first.cc`
 void setPacketErrorRates(NetDeviceContainer);
 
 int
@@ -25,7 +27,6 @@ main(int argc, char* argv[])
 
 
     Time::SetResolution(Time::NS);
-    LogComponentEnable("UdpEchoClientApplication", LOG_LEVEL_INFO);
     LogComponentEnable("UdpEchoServerApplication", LOG_LEVEL_INFO);
 
     NodeContainer nodes;
@@ -45,23 +46,19 @@ main(int argc, char* argv[])
 
     Ipv4AddressHelper address;
     address.SetBase("10.1.1.0", "255.255.255.0");
-
     Ipv4InterfaceContainer interfaces = address.Assign(devices);
 
-    UdpEchoServerHelper echoServer(9);
+    Ptr<GbnSender> sender = CreateObject<GbnSender>();
+    nodes.Get(0)->AddApplication(sender);
+    sender->Setup(
+        interfaces.GetAddress(1),
+        ::SimulationConfig::numberOfDataPackets,
+        ::SimulationConfig::linkBandwidth
+    );
 
-    ApplicationContainer serverApps = echoServer.Install(nodes.Get(1));
-    serverApps.Start(Seconds(1));
-    serverApps.Stop(Seconds(10));
-
-    UdpEchoClientHelper echoClient(interfaces.GetAddress(1), 9);
-    echoClient.SetAttribute("MaxPackets", UintegerValue(1));
-    echoClient.SetAttribute("Interval", TimeValue(Seconds(1)));
-    echoClient.SetAttribute("PacketSize", UintegerValue(1024));
-
-    ApplicationContainer clientApps = echoClient.Install(nodes.Get(0));
-    clientApps.Start(Seconds(2));
-    clientApps.Stop(Seconds(10));
+    Ptr<GbnReceiver> receiver = CreateObject<GbnReceiver>();
+    nodes.Get(1)->AddApplication(receiver);
+    receiver->Setup(interfaces.GetAddress(1));
 
     Simulator::Stop(::SimulationConfig::maximumSimulationDuration);
     Simulator::Run();

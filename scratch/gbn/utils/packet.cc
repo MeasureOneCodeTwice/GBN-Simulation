@@ -46,8 +46,9 @@ Ptr<Packet> GbnPacket::Serialize() {
     memcpy(buffer, &networkOrderSequenceNumber, GbnConfig::sequenceNumberSize);
     std::size_t bufferContentLength = GbnConfig::sequenceNumberSize;
     if(this->payload) {
-        bufferContentLength = GbnConfig::sequenceNumberSize;
-        memcpy(buffer + bufferContentLength, this->payload->data(), this->payload->size());
+        size_t payloadSize = this->payload->size();
+        memcpy(buffer + bufferContentLength, this->payload->data(), payloadSize);
+        bufferContentLength += payloadSize;
     }
 
     return Create<Packet>(buffer, bufferContentLength);

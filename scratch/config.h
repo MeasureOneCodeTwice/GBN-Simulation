@@ -15,6 +15,8 @@ class SimulationConfig {
         static constexpr std::string pcapOutputDirectory = "pcaps/";
         static constexpr std::string pcapOutputBaseFileName = "capture";
 
+        static const uint32_t randomSeed = 1;
+
 
     // CLI configurable
     private:

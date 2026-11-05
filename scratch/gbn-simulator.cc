@@ -27,6 +27,7 @@ main(int argc, char* argv[])
     ::SimulationConfig::applyCliArguments(argc, argv);
 
     Time::SetResolution(Time::NS);
+    ns3::RngSeedManager::SetSeed(SimulationConfig::randomSeed);
 
     NodeContainer nodes;
     //Sender: nodes[0], Receiver: nodes[1]
@@ -37,8 +38,8 @@ main(int argc, char* argv[])
     pointToPoint.SetChannelAttribute("Delay", StringValue(::SimulationConfig::propagationDelay ));
 
 
-
     NetDeviceContainer devices = pointToPoint.Install(nodes);
+    //enable PCAP
     std::filesystem::create_directory(SimulationConfig::pcapOutputDirectory);
     pointToPoint.EnablePcapAll(SimulationConfig::pcapOutputDirectory + SimulationConfig::pcapOutputBaseFileName);
     setPacketErrorRates(devices);

@@ -1,3 +1,5 @@
+//Based on the example `examples/tutorial/first.cc`
+
 /*
  * SPDX-License-Identifier: GPL-2.0-only
  */
@@ -18,8 +20,9 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("GbnNetwork");
 
-//Based on the example `examples/tutorial/first.cc`
+
 void setPacketErrorRates(NetDeviceContainer);
+void printMetrics(GbnSender::Metrics);
 
 int
 main(int argc, char* argv[])
@@ -70,17 +73,7 @@ main(int argc, char* argv[])
     Simulator::Run();
     Simulator::Destroy();
 
-    GbnSender::Metrics metrics = sender->getMetrics();
-    auto goodputPercentage = ((float)metrics.goodput.GetBitRate() / DataRate(SimulationConfig::linkBandwidth).GetBitRate()) * 100;
-    std::cout << std::endl;
-    std::cout << "----------- METRICS -----------" << std::endl;
-    std::cout << " Total Packets Transmitted: "    << metrics.totalPacketsTransmitted << std::endl;
-    std::cout << " Packet Retransmissions: "       << metrics.packetRetransmissions   << std::endl;
-    std::cout << " Timeouts: "                     << metrics.timeouts                << std::endl;
-    std::cout << " End time: "                     << metrics.endTime.As(Time::S)     << std::endl;
-    std::cout << " Goodput: "                      << metrics.goodput                 << std::endl;
-    std::cout << " Goodput Percentage: "           << goodputPercentage               << std::endl;
-    std::cout << "-------------------------------" << std::endl;
+    printMetrics(sender->getMetrics());
     return 0;
 }
 
@@ -97,4 +90,17 @@ void setPacketErrorRates(NetDeviceContainer devices) {
     ackErrorModel->SetRate(::SimulationConfig::getAckPacketLossProbability());
     //set sender recv error rate
     devices.Get(0)->SetAttribute ("ReceiveErrorModel", PointerValue(ackErrorModel));
+}
+
+void printMetrics(GbnSender::Metrics metrics) {
+    auto goodputPercentage = ((float)metrics.goodput.GetBitRate() / DataRate(SimulationConfig::linkBandwidth).GetBitRate()) * 100;
+    std::cout << std::endl;
+    std::cout << "----------- METRICS -----------" << std::endl;
+    std::cout << " Total Packets Transmitted: "    << metrics.totalPacketsTransmitted << std::endl;
+    std::cout << " Packet Retransmissions: "       << metrics.packetRetransmissions   << std::endl;
+    std::cout << " Timeouts: "                     << metrics.timeouts                << std::endl;
+    std::cout << " End time: "                     << metrics.endTime.As(Time::S)     << std::endl;
+    std::cout << " Goodput: "                      << metrics.goodput                 << std::endl;
+    std::cout << " Goodput Percentage: "           << goodputPercentage               << std::endl;
+    std::cout << "-------------------------------" << std::endl;
 }

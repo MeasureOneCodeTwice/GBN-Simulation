@@ -268,7 +268,7 @@ GbnSender::Metrics GbnSender::getMetrics()  const {
     auto runtimeDuration = m_metrics.lastAckedPacketTime - m_metrics.startTime;
     if(!runtimeDuration.IsZero()) {
         uint32_t payloadBytesTransmitted = GbnSenderConfig::getPayloadContent().size() * m_nPacketsAcked;;
-        metrics.goodput =  payloadBytesTransmitted / runtimeDuration.GetSeconds();
+        metrics.goodput =  payloadBytesTransmitted * 8 / runtimeDuration.GetSeconds();
     }
 
     return metrics;

@@ -14,8 +14,11 @@ class GbnConfig {
     public:
         static const uint32_t port = 30;
         static const std::size_t sequenceNumberSize = 4;
-        static constexpr uint32_t initialSequenceNumber = (GbnConfig::studentId / 10) % 10; //Second right-most digit of student ID;
-        static const uint32_t maxSequenceNumber = 15;
+        // static constexpr uint32_t initialSequenceNumber = (GbnConfig::studentId / 10) % 10; //Second right-most digit of student ID;
+        static constexpr uint32_t initialSequenceNumber = 0;
+                                                                                            //// TODO
+        // static const uint32_t maxSequenceNumber = 15;
+        static const uint32_t maxSequenceNumber = 300;
         static const std::size_t payloadSize = 1000; //(application data) + 4 bytes (sequence number);
 };
 
@@ -26,8 +29,7 @@ class GbnSenderConfig : GbnConfig {
 
     public:
         static constexpr std::string retransmissionTimeout = "100ms";
-        static constexpr int windowSize = 5 + (GbnSenderConfig::studentId % 5);
-        static const int numPackets;
+        static constexpr uint32_t windowSize = 5 + (GbnSenderConfig::studentId % 5);
 
         static constexpr PacketPayload getPayloadContent() {
             const std::size_t nameLength = GbnSenderConfig::studentName.length();

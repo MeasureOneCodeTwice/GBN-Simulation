@@ -9,15 +9,24 @@
 #include "ns3/applications-module.h"
 
 #include <memory.h>
-#include <assert.h>
+#include <algorithm>
 
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("GbnSender");
 
 void GbnSender::onTimeout(::SequenceNumber sequenceNumber) {
-    assert(sequenceNumber == m_baseSequenceNumber);
-    this->SendPackets(this->m_baseSequenceNumber, GbnSenderConfig::windowSize);
+    NS_ASSERT(sequenceNumber == m_baseSequenceNumber);
+    NS_ASSERT(m_nextSequenceNumber == getWindowEnd() + 1);
+    NS_TIMESTAMP_LOG_INFO(
+            "Packet with sequence number "
+            << sequenceNumber.to_string()
+            << " timed out"
+    );
+    m_timeoutQueue.clear();
+    //only retransmit packets we've sent
+    m_metrics.packetRetransmissions += SendPackets(m_baseSequenceNumber, m_nextSequenceNumber - 1);
+    ++m_metrics.timeouts;
 }
 
 //based on `examples/tutorial/tutorial-app.cc`
@@ -25,6 +34,7 @@ GbnSender::GbnSender()
     : m_socket(nullptr),
       m_peer(),
       m_nPackets(0),
+      m_nPacketsAcked(0),
       m_running(false),
       m_baseSequenceNumber(GbnConfig::initialSequenceNumber),
       m_nextSequenceNumber(GbnConfig::initialSequenceNumber),
@@ -33,7 +43,7 @@ GbnSender::GbnSender()
               GbnSenderConfig::retransmissionTimeout
       )
 {
-    assert(!::SequenceNumber(8).InWindow(9, 0));
+    NS_ASSERT(!::SequenceNumber(8).inWindow(9, 0));
 }
 
 GbnSender::~GbnSender()
@@ -70,7 +80,7 @@ GbnSender::StartApplication()
         MakeCallback(&GbnSender::OnRecv, this)
     );
 
-    SendPackets(m_baseSequenceNumber, GbnSenderConfig::windowSize);
+    SendPackets(m_baseSequenceNumber, getWindowEnd());
 }
 
 void
@@ -85,20 +95,30 @@ GbnSender::StopApplication()
 
 
 
-void GbnSender::SendPackets(::SequenceNumber from, uint32_t numPackets) {
+int GbnSender::SendPackets(::SequenceNumber from, ::SequenceNumber to) {
 
     NS_TIMESTAMP_LOG_DEBUG(
         "Sending packets from "
         << from.to_string()
         << " to "
-        << (from + numPackets).to_string();
+        << to.to_string();
     );
 
-    for(uint32_t i = 0; i < numPackets; i++) {
-        SendPacket(from + i);
+    ::SequenceNumber curr = from;
+    while(curr != to + 1) {
+        m_timeoutQueue.enqueue(curr);
+        NS_TIMESTAMP_LOG_DEBUG(
+                "Inserted packet with sequence number "
+                << curr.to_string()
+                << " into timeout queue"
+        );
+        SendPacket(curr);
+        ++curr;
     }
-    m_nextSequenceNumber = from + numPackets - 1;
-    m_metrics.totalPacketsTransmitted += numPackets;
+    m_nextSequenceNumber = to + 1;
+    uint32_t packetsSent = from.distance(to) + 1;
+    m_metrics.totalPacketsTransmitted += packetsSent;
+    return packetsSent;
 }
 
 void
@@ -119,7 +139,7 @@ GbnSender::SendPacket(const ::SequenceNumber sequenceNumber)
 
 void GbnSender::OnRecv(Ptr<Socket> sock) {
     if(!m_running) return;
-    assert(m_socket->GetRxAvailable());
+    NS_ASSERT(m_socket->GetRxAvailable());
 
     Ptr<Packet> packet = sock->Recv();
     GbnPacket gbnPacket;
@@ -134,7 +154,7 @@ void GbnSender::OnRecv(Ptr<Socket> sock) {
 
     bool outOfRangeSequenceNumber = !gbnPacket.sequenceNumber.inWindow(
         m_baseSequenceNumber,
-        m_nextSequenceNumber
+        m_nextSequenceNumber - 1
     );
     if(outOfRangeSequenceNumber) {
         NS_TIMESTAMP_LOG_DEBUG(
@@ -143,7 +163,7 @@ void GbnSender::OnRecv(Ptr<Socket> sock) {
             << " is not in "
             << m_baseSequenceNumber.to_string()
             << " to "
-            << m_nextSequenceNumber.to_string()
+            << (m_nextSequenceNumber - 1).to_string()
             << " mod "
             << std::to_string(GbnConfig::maxSequenceNumber)
             << ")"
@@ -157,31 +177,56 @@ void GbnSender::OnRecv(Ptr<Socket> sock) {
         << ". Window: ["
         << m_baseSequenceNumber.to_string()
         << " -> "
-        << (m_baseSequenceNumber + GbnSenderConfig::windowSize - 1).to_string()
+        << getWindowEnd().to_string()
         << "] (next: "
-        << m_nextSequenceNumber.to_string()
+        << (m_nextSequenceNumber - 1).to_string()
         << ")";
     );
 
-    m_baseSequenceNumber = gbnPacket.sequenceNumber + 1;
+    ::SequenceNumber nextBase = gbnPacket.sequenceNumber + 1;
+    if(nextBase == getWindowEnd() + 1) {
+        nextBase = getWindowEnd();
+    }
+    m_nPacketsAcked += m_baseSequenceNumber.distance(nextBase);
 
-    ::SequenceNumber txNext = m_nextSequenceNumber + 1;
-    //Send now available due to window shift
-    uint32_t packetsToSend = txNext.distance(m_baseSequenceNumber + GbnSenderConfig::windowSize);
-    //Respect application packet limit.
-    packetsToSend = std::min(packetsToSend, m_nPackets - m_nPacketsSent);
+    uint32_t numPacketsToDequeue = m_baseSequenceNumber.distance(gbnPacket.sequenceNumber + 1);
+    for(uint32_t i = 0; i < numPacketsToDequeue; i++) {
+        ::SequenceNumber removed = m_timeoutQueue.dequeue();
+        NS_ASSERT(removed == m_baseSequenceNumber + i);
+    }
+    m_baseSequenceNumber = nextBase;
 
-    SendPackets(txNext, packetsToSend);
-    m_nPacketsSent += packetsToSend;
-    assert(m_nPacketsSent < m_nPackets);
 
     NS_TIMESTAMP_LOG_DEBUG(
         "Window is now ["
         << m_baseSequenceNumber.to_string()
         << " -> "
-        << (m_baseSequenceNumber + GbnSenderConfig::windowSize - 1).to_string()
+        << getWindowEnd().to_string()
         << "] (next: "
-        << m_nextSequenceNumber.to_string()
+        << (m_nextSequenceNumber - 1).to_string()
         << ")"
     );
+
+    //Send packets now available due to window shift
+    SendPackets(m_nextSequenceNumber, getWindowEnd());
+
+    NS_TIMESTAMP_LOG_INFO("Sent " << m_nPacketsAcked << " of " << m_nPackets << " packets");
+    if(allPacketsReceived()) {
+        NS_LOG_INFO("Done.");
+        return;
+    }
+
+    NS_ASSERT(m_nPacketsAcked <= m_nPackets);
+}
+
+::SequenceNumber GbnSender::getWindowEnd() const {
+    NS_ASSERT(m_nPackets >= m_nPacketsAcked);
+
+    uint32_t packetsLeft = m_nPackets - m_nPacketsAcked;
+    uint32_t min = std::min(packetsLeft, GbnSenderConfig::windowSize - 1);
+    return m_baseSequenceNumber + min;
+}
+
+bool GbnSender::allPacketsReceived() const {
+    return m_nPackets == m_nPacketsAcked;
 }

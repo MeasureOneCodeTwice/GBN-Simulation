@@ -30,17 +30,20 @@ class GbnSender : public Application {
 
     /// Send a packet.
     void SendPacket(::SequenceNumber);
-    // Sends all packets in the window from a given point
-    void SendPackets(::SequenceNumber from, uint32_t numPackets);
+    // Sends all packets in range and returns number of packets sent.
+    // including from and to
+    int SendPackets(::SequenceNumber from, ::SequenceNumber to);
 
-    Ptr<Socket> m_socket;     //!< The transmission socket.
-    Address m_peer;           //!< The destination address.
-    uint32_t m_nPackets;      //!< The number of packets to send
-    uint32_t m_nPacketsSent;  //!< The number of packets to send
-    bool m_running;           //!< True if the application is running.
+    Ptr<Socket> m_socket;         //!< The transmission socket.
+    Address m_peer;               //!< The destination address.
+    uint32_t m_nPackets;          //!< The number of packets to send
+    uint32_t m_nPacketsAcked;     //!< The number of packets ACK'd by the recipient
+    bool m_running;               //!< True if the application is running.
 
     ::SequenceNumber m_baseSequenceNumber; //!< Oldest un-acked packet
     ::SequenceNumber m_nextSequenceNumber; //!< Smallest unused sequence number
+    ::SequenceNumber getWindowEnd() const; //!< The last sequence number in the window
+    bool allPacketsReceived() const;
 
     TimedQueue<::SequenceNumber> m_timeoutQueue;
     void onTimeout(::SequenceNumber);

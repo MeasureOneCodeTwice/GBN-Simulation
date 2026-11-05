@@ -12,50 +12,83 @@ TimedQueue<T>::TimedQueue(std::function<void(T)> callback, std::string itemLifet
 {
 }
 
+template<typename T>
+void TimedQueue<T>::clear() {
+    assertValidState();
 
-//what happens when multiple expire at the same time?
+    if(!queue.empty()) {
+        cancelTimeout();
+    }
+
+    queue = std::queue<TimedItem>();
+    NS_ASSERT(queue.empty());
+
+    assertValidState();
+}
+
 template<typename T>
 void TimedQueue<T>::enqueue(const T &item) {
-    Time expiry = Simulator::Now() + itemLifetimeDuration;
+    assertValidState();
+
+    Time expiry = Simulator::Now() + Time(itemLifetimeDuration);
+    std::cerr << item.to_string() << " expiry is for " << expiry.As(Time::S) << std::endl;;
 
     if(queue.empty()) {
         scheduleTimeout(expiry);
     }
 
-    queue.push(std::pair(item, expiry));
+    queue.emplace(item, expiry);
+    assertValidState();
 };
 
-template<typename T>
-void TimedQueue<T>::scheduleTimeout(Time time) {
-    assert(timeout.IsExpired());
-    timeout = Simulator::Schedule(time, &TimedQueue<T>::onExpiry, this);
-}
 
 template<typename T>
 T TimedQueue<T>::dequeue() {
-    T &item = queue.front();
-    queue.pop();
-
-    if(!queue.empty) {
-        Time headExpiry = std::get<1>(queue.front());
-        scheduleTimeout(headExpiry);
-    } else {
-        timeout.Cancel();
+    assertValidState();
+    if(queue.size() == 0) {
+        throw std::runtime_error("Cannot dequeue empty queue");
     }
 
-    return item;
+    TimedItem item = queue.front();
+    queue.pop();
+
+    if(!queue.empty()) {
+        Time headExpiry = std::get<Time>(queue.front());
+        scheduleTimeout(headExpiry);
+    } else {
+        cancelTimeout();
+    }
+
+    assertValidState();
+    return std::get<T>(item);
+}
+
+template<typename T>
+void TimedQueue<T>::scheduleTimeout(Time time) {
+    if(timeout) {
+        cancelTimeout();
+    }
+    timeout = Simulator::Schedule(time - Simulator::Now(), &TimedQueue<T>::onExpiry, this);
+}
+
+template<typename T>
+void TimedQueue<T>::cancelTimeout() {
+    NS_ASSERT(timeout);
+    timeout->Cancel();
+    timeout.reset();
 }
 
 template<typename T>
 void TimedQueue<T>::onExpiry() {
-    T item = queue.front();
+    assertValidState();
+    NS_ASSERT(!queue.empty());
+    TimedItem item = queue.front();
 
-    //remove all items with the same expiry
-    T& curr = item;
-    while(std::get<1>(curr) == std::get<1>(item)) {
-        queue.pop();
-    }
-
-    onExpiryCallback(item);
+    onExpiryCallback(std::get<T>(item));
+    assertValidState();
 }
-#include "timed-queue.ipp"
+
+template<typename T>
+void TimedQueue<T>::assertValidState() {
+    NS_ASSERT(timeout.has_value() == !queue.empty());
+}

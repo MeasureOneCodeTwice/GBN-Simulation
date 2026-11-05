@@ -7,8 +7,8 @@ using namespace ns3;
 
 //A queue with a timer that activates a callback and removes an item
 //when it expires.
-//If multiple items expire at the same time, all are removed and only the first one
-//is passed to the callback.
+//If multiple items expire at the same time, a callback is called on the head
+//of the queue. No items are removed on expiry.
 template<typename T>
 class TimedQueue
 {
@@ -17,11 +17,14 @@ class TimedQueue
         TimedQueue(std::function<void(T)> onExpiryCallback, std::string itemLifetimeDuration);
         void enqueue(const T&);
         T dequeue();
+        void clear();
     private:
         void onExpiry();
+        void cancelTimeout();
         void scheduleTimeout(Time);
+        void assertValidState();
 
-        EventId timeout;
+        std::optional<EventId> timeout;
         std::queue<TimedItem> queue;
         Time itemLifetimeDuration;
         std::function<void(T)> onExpiryCallback;

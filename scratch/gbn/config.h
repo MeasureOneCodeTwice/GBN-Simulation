@@ -38,5 +38,4 @@ class GbnSenderConfig : GbnConfig {
             return array;
         }
 };
-// static_assert(GbnSenderConfig::getPayloadContent().size() + GbnConfig::sequenceNumberSize == GbnConfig::payloadSize);
 static_assert(GbnSenderConfig::windowSize * 2 <= GbnConfig::maxSequenceNumber + 1);

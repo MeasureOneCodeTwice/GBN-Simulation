@@ -26,9 +26,11 @@ class GbnSender : public Application {
         uint32_t totalPacketsTransmitted;
         uint32_t packetRetransmissions;
         uint32_t timeouts;
-        Time completionTime;
+        DataRate goodput;
+        Time endTime;
     };
     Metrics getMetrics() const;
+
 
   private:
     void StartApplication() override;
@@ -47,8 +49,15 @@ class GbnSender : public Application {
     uint32_t m_nPackets;          //!< The number of packets to send
     uint32_t m_nPacketsAcked;     //!< The number of packets ACK'd by the recipient
     bool m_running;               //!< True if the application is running.
-
-    Metrics m_metrics;
+                                  //
+    struct RawMetrics {
+        uint32_t totalPacketsTransmitted;
+        uint32_t packetRetransmissions;
+        uint32_t timeouts;
+        Time startTime;
+        Time lastAckedPacketTime;
+    };
+    RawMetrics m_metrics;
 
     ::SequenceNumber m_baseSequenceNumber; //!< Oldest un-acked packet
     ::SequenceNumber m_nextSequenceNumber; //!< Smallest unused sequence number

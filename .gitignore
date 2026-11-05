@@ -3,3 +3,4 @@ __pycache__/
 cmake-cache/
 .cache/
 .lock-ns3_linux_build
+pcaps/

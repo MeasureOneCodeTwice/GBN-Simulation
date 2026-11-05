@@ -12,6 +12,10 @@ class SimulationConfig {
         static constexpr std::string propagationDelay = "20ms";
         static const int numberOfDataPackets = 100;
 
+        static constexpr std::string pcapOutputDirectory = "pcaps/";
+        static constexpr std::string pcapOutputBaseFileName = "capture";
+
+
     // CLI configurable
     private:
         static float DataPacketLossProbability;
@@ -36,12 +40,6 @@ class SimulationConfig {
             cmd.AddValue("AckPacketLossProbability", "The probability of ack packet loss", SimulationConfig::AckPacketLossProbability);
             cmd.Parse(argc, argv);
         }
-
-
-
-        // int byteOrder = Network byte order;
-        // int randomnessControl = RngSeedManager;
-        // int performanceMetrics = Delivered packets, transmissions, retransmissions, timeouts, completion time, goodput;
 };
 
 float SimulationConfig::DataPacketLossProbability = SimulationConfig::DefaultDataPacketLossProbability;

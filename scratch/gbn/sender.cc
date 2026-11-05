@@ -73,6 +73,8 @@ GbnSender::Setup(Ipv4Address address, uint32_t nPackets) {
 void
 GbnSender::StartApplication()
 {
+    m_startTime = Simulator::Now();
+
     m_running = true;
     m_socket->Bind();
     m_socket->Connect(m_peer);
@@ -197,6 +199,11 @@ void GbnSender::OnRecv(Ptr<Socket> sock) {
         << m_baseSequenceNumber.distance(nextBase)
         << " more packets acked"
     );
+
+    //need to keep track of this every time instead of just for
+    //the last packet in case the simulation ends before the application
+    //never sends its last packet.
+    m_metrics.lastAckedPacketTime = Simulator::Now();
     m_nPacketsAcked += m_baseSequenceNumber.distance(nextBase);
 
     uint32_t numPacketsToDequeue = m_baseSequenceNumber.distance(gbnPacket.sequenceNumber + 1);
@@ -222,7 +229,6 @@ void GbnSender::OnRecv(Ptr<Socket> sock) {
         NS_TIMESTAMP_LOG_INFO(
             "Finished sending packets."
         );
-        m_metrics.completionTime = Simulator::Now();
         return;
     }
 
@@ -251,6 +257,20 @@ bool GbnSender::allPacketsReceived() const {
 }
 
 GbnSender::Metrics GbnSender::getMetrics()  const {
-    return m_metrics;
+    Metrics metrics {
+        .totalPacketsTransmitted = m_metrics.totalPacketsTransmitted,
+        .packetRetransmissions   = m_metrics.packetRetransmissions,
+        .timeouts                = m_metrics.timeouts,
+        .goodput                 = 0,
+        .endTime                 = m_metrics.lastAckedPacketTime,
+    };
+
+    auto runtimeDuration = m_metrics.lastAckedPacketTime - m_metrics.startTime;
+    if(!runtimeDuration.IsZero()) {
+        uint32_t payloadBytesTransmitted = GbnSenderConfig::getPayloadContent().size() * m_nPacketsAcked;;
+        metrics.goodput =  payloadBytesTransmitted / runtimeDuration.GetSeconds();
+    }
+
+    return metrics;
 };
 

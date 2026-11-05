@@ -12,6 +12,8 @@
 #include "./gbn/sender.h"
 #include "./gbn/receiver.h"
 
+#include <filesystem>
+
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("GbnNetwork");
@@ -35,7 +37,10 @@ main(int argc, char* argv[])
     pointToPoint.SetChannelAttribute("Delay", StringValue(::SimulationConfig::propagationDelay ));
 
 
+
     NetDeviceContainer devices = pointToPoint.Install(nodes);
+    std::filesystem::create_directory(SimulationConfig::pcapOutputDirectory);
+    pointToPoint.EnablePcapAll(SimulationConfig::pcapOutputDirectory + SimulationConfig::pcapOutputBaseFileName);
     setPacketErrorRates(devices);
 
     InternetStackHelper stack;
@@ -47,7 +52,7 @@ main(int argc, char* argv[])
 
 
     LogComponentEnable("GbnReceiver", LOG_LEVEL_INFO);
-    LogComponentEnable("GbnSender", LOG_LEVEL_DEBUG);
+    LogComponentEnable("GbnSender", LOG_LEVEL_INFO);
 
     Ptr<GbnSender> sender = CreateObject<GbnSender>();
     nodes.Get(0)->AddApplication(sender);
@@ -65,10 +70,16 @@ main(int argc, char* argv[])
     Simulator::Destroy();
 
     GbnSender::Metrics metrics = sender->getMetrics();
-    std::cout << "totalPacketsTransmitted: " << metrics.totalPacketsTransmitted    << std::endl;
-    std::cout << "packetRetransmissions: "   << metrics.packetRetransmissions      << std::endl;
-    std::cout << "timeouts: "                << metrics.timeouts                   << std::endl;
-    std::cout << "end time: "                << metrics.completionTime.As(Time::S) << std::endl;
+    auto goodputPercentage = ((float)metrics.goodput.GetBitRate() / DataRate(SimulationConfig::linkBandwidth).GetBitRate()) * 100;
+    std::cout << std::endl;
+    std::cout << "----------- METRICS -----------" << std::endl;
+    std::cout << " Total Packets Transmitted: "    << metrics.totalPacketsTransmitted << std::endl;
+    std::cout << " Packet Retransmissions: "       << metrics.packetRetransmissions   << std::endl;
+    std::cout << " Timeouts: "                     << metrics.timeouts                << std::endl;
+    std::cout << " End time: "                     << metrics.endTime.As(Time::S)     << std::endl;
+    std::cout << " Goodput: "                      << metrics.goodput                 << std::endl;
+    std::cout << " Goodput Percentage: "           << goodputPercentage               << std::endl;
+    std::cout << "-------------------------------" << std::endl;
     return 0;
 }
 

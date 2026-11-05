@@ -36,6 +36,7 @@ GbnSender::GbnSender()
       m_nPackets(0),
       m_nPacketsAcked(0),
       m_running(false),
+      m_metrics({}),
       m_baseSequenceNumber(GbnConfig::initialSequenceNumber),
       m_nextSequenceNumber(GbnConfig::initialSequenceNumber),
       m_timeoutQueue(
@@ -116,6 +117,7 @@ int GbnSender::SendPackets(::SequenceNumber from, ::SequenceNumber to) {
         ++curr;
     }
     m_nextSequenceNumber = to + 1;
+
     uint32_t packetsSent = from.distance(to) + 1;
     m_metrics.totalPacketsTransmitted += packetsSent;
     return packetsSent;
@@ -139,6 +141,8 @@ GbnSender::SendPacket(const ::SequenceNumber sequenceNumber)
 
 void GbnSender::OnRecv(Ptr<Socket> sock) {
     if(!m_running) return;
+    if(allPacketsReceived()) return;
+
     NS_ASSERT(m_socket->GetRxAvailable());
 
     Ptr<Packet> packet = sock->Recv();
@@ -184,9 +188,15 @@ void GbnSender::OnRecv(Ptr<Socket> sock) {
     );
 
     ::SequenceNumber nextBase = gbnPacket.sequenceNumber + 1;
-    if(nextBase == getWindowEnd() + 1) {
-        nextBase = getWindowEnd();
-    }
+    NS_TIMESTAMP_LOG_DEBUG(
+            "Total packets acked: "
+            << m_nPacketsAcked
+    );
+    NS_TIMESTAMP_LOG_DEBUG(
+        ""
+        << m_baseSequenceNumber.distance(nextBase)
+        << " more packets acked"
+    );
     m_nPacketsAcked += m_baseSequenceNumber.distance(nextBase);
 
     uint32_t numPacketsToDequeue = m_baseSequenceNumber.distance(gbnPacket.sequenceNumber + 1);
@@ -207,15 +217,24 @@ void GbnSender::OnRecv(Ptr<Socket> sock) {
         << ")"
     );
 
-    //Send packets now available due to window shift
-    SendPackets(m_nextSequenceNumber, getWindowEnd());
 
-    NS_TIMESTAMP_LOG_INFO("Sent " << m_nPacketsAcked << " of " << m_nPackets << " packets");
     if(allPacketsReceived()) {
-        NS_LOG_INFO("Done.");
+        NS_TIMESTAMP_LOG_INFO(
+            "Finished sending packets."
+        );
+        m_metrics.completionTime = Simulator::Now();
         return;
     }
 
+    //Don't sent packets outside of the window
+    //this happens when the window has
+    //not shifted (we have sent all the packets we are supposed to)
+    if(m_nextSequenceNumber != getWindowEnd() + 1) {
+        //Send packets now available due to window shift
+        SendPackets(m_nextSequenceNumber, getWindowEnd());
+    }
+
+    NS_TIMESTAMP_LOG_INFO("Sent " << m_nPacketsAcked << " of " << m_nPackets << " packets");
     NS_ASSERT(m_nPacketsAcked <= m_nPackets);
 }
 
@@ -223,10 +242,15 @@ void GbnSender::OnRecv(Ptr<Socket> sock) {
     NS_ASSERT(m_nPackets >= m_nPacketsAcked);
 
     uint32_t packetsLeft = m_nPackets - m_nPacketsAcked;
-    uint32_t min = std::min(packetsLeft, GbnSenderConfig::windowSize - 1);
+    uint32_t min = std::min(packetsLeft, GbnSenderConfig::windowSize) - 1;
     return m_baseSequenceNumber + min;
 }
 
 bool GbnSender::allPacketsReceived() const {
     return m_nPackets == m_nPacketsAcked;
 }
+
+GbnSender::Metrics GbnSender::getMetrics()  const {
+    return m_metrics;
+};
+

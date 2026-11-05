@@ -22,6 +22,14 @@ class GbnSender : public Application {
      */
     void Setup(Ipv4Address address, uint32_t nPackets);
 
+    struct Metrics {
+        uint32_t totalPacketsTransmitted;
+        uint32_t packetRetransmissions;
+        uint32_t timeouts;
+        Time completionTime;
+    };
+    Metrics getMetrics() const;
+
   private:
     void StartApplication() override;
     void StopApplication() override;
@@ -40,6 +48,8 @@ class GbnSender : public Application {
     uint32_t m_nPacketsAcked;     //!< The number of packets ACK'd by the recipient
     bool m_running;               //!< True if the application is running.
 
+    Metrics m_metrics;
+
     ::SequenceNumber m_baseSequenceNumber; //!< Oldest un-acked packet
     ::SequenceNumber m_nextSequenceNumber; //!< Smallest unused sequence number
     ::SequenceNumber getWindowEnd() const; //!< The last sequence number in the window
@@ -48,11 +58,4 @@ class GbnSender : public Application {
     TimedQueue<::SequenceNumber> m_timeoutQueue;
     void onTimeout(::SequenceNumber);
 
-    struct Metrics {
-        uint32_t totalPacketsTransmitted;
-        uint32_t packetRetransmissions;
-        uint32_t timeouts;
-        Time completionTime;
-    };
-    Metrics m_metrics;
 };

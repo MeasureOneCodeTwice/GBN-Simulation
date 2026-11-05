@@ -31,7 +31,6 @@ void TimedQueue<T>::enqueue(const T &item) {
     assertValidState();
 
     Time expiry = Simulator::Now() + Time(itemLifetimeDuration);
-    std::cerr << item.to_string() << " expiry is for " << expiry.As(Time::S) << std::endl;;
 
     if(queue.empty()) {
         scheduleTimeout(expiry);

@@ -14,11 +14,8 @@ class GbnConfig {
     public:
         static const uint32_t port = 30;
         static const std::size_t sequenceNumberSize = 4;
-        // static constexpr uint32_t initialSequenceNumber = (GbnConfig::studentId / 10) % 10; //Second right-most digit of student ID;
-        static constexpr uint32_t initialSequenceNumber = 0;
-                                                                                            //// TODO
-        // static const uint32_t maxSequenceNumber = 15;
-        static const uint32_t maxSequenceNumber = 300;
+        static constexpr uint32_t initialSequenceNumber = (GbnConfig::studentId / 10) % 10; //Second right-most digit of student ID;
+        static const uint32_t maxSequenceNumber = 15;
         static const std::size_t payloadSize = 1000; //(application data) + 4 bytes (sequence number);
 };
 

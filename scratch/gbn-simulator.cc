@@ -23,8 +23,6 @@ int
 main(int argc, char* argv[])
 {
     ::SimulationConfig::applyCliArguments(argc, argv);
-    std::cout << ::SimulationConfig::getDataPacketLossProbability() << std::endl;
-
 
     Time::SetResolution(Time::NS);
 
@@ -65,6 +63,12 @@ main(int argc, char* argv[])
     Simulator::Stop(::SimulationConfig::maximumSimulationDuration);
     Simulator::Run();
     Simulator::Destroy();
+
+    GbnSender::Metrics metrics = sender->getMetrics();
+    std::cout << "totalPacketsTransmitted: " << metrics.totalPacketsTransmitted    << std::endl;
+    std::cout << "packetRetransmissions: "   << metrics.packetRetransmissions      << std::endl;
+    std::cout << "timeouts: "                << metrics.timeouts                   << std::endl;
+    std::cout << "end time: "                << metrics.completionTime.As(Time::S) << std::endl;
     return 0;
 }
 
@@ -73,10 +77,12 @@ void setPacketErrorRates(NetDeviceContainer devices) {
     Ptr<RateErrorModel> dataErrorModel = CreateObject<RateErrorModel>();
     dataErrorModel->SetUnit(RateErrorModel::ErrorUnit::ERROR_UNIT_PACKET);
     dataErrorModel->SetRate(::SimulationConfig::getDataPacketLossProbability());
-    devices.Get(0)->SetAttribute ("ReceiveErrorModel", PointerValue(dataErrorModel));
+    //set recipient error rate
+    devices.Get(1)->SetAttribute ("ReceiveErrorModel", PointerValue(dataErrorModel));
 
     Ptr<RateErrorModel> ackErrorModel = CreateObject<RateErrorModel>();
     ackErrorModel->SetUnit(RateErrorModel::ErrorUnit::ERROR_UNIT_PACKET);
     ackErrorModel->SetRate(::SimulationConfig::getAckPacketLossProbability());
-    devices.Get(1)->SetAttribute ("ReceiveErrorModel", PointerValue(ackErrorModel));
+    //set sender recv error rate
+    devices.Get(0)->SetAttribute ("ReceiveErrorModel", PointerValue(ackErrorModel));
 }

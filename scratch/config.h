@@ -47,4 +47,3 @@ class SimulationConfig {
 float SimulationConfig::DataPacketLossProbability = SimulationConfig::DefaultDataPacketLossProbability;
 float SimulationConfig::AckPacketLossProbability = SimulationConfig::DefaultAckPacketLossProbability;
 const ns3::Time SimulationConfig::maximumSimulationDuration("120s");
-

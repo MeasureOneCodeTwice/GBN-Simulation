@@ -1,5 +1,6 @@
 #include "./receiver.h"
-#include "./packet.h"
+#include "./utils/packet.h"
+#include "./utils/logging.h"
 
 #include "ns3/core-module.h"
 #include "ns3/internet-module.h"
@@ -14,7 +15,6 @@ NS_LOG_COMPONENT_DEFINE("GbnReceiver");
 GbnReceiver::GbnReceiver()
     : m_socket(nullptr),
       m_running(false),
-      m_sendEvent(),
       m_sequenceNumber(GbnConfig::initialSequenceNumber)
 {
 }
@@ -52,7 +52,7 @@ GbnReceiver::OnRecv(Ptr<Socket> socket) {
         packet = GbnPacket::Parse(rawPacket);
     } catch(std::runtime_error& e) {
         std::string message = "Dropping packet due to parsing error: ";
-        NS_LOG_ERROR(message + e.what());
+        NS_TIMESTAMP_LOG_INFO(message + e.what());
         return;
     }
 
@@ -60,7 +60,7 @@ GbnReceiver::OnRecv(Ptr<Socket> socket) {
         std::string message =
             "Successfuly received data packet with sequence number "
             + packet.sequenceNumber.to_string();
-        NS_LOG_INFO(message);
+        NS_TIMESTAMP_LOG_INFO(message);
 
         ++m_sequenceNumber;
     } else {
@@ -70,7 +70,7 @@ GbnReceiver::OnRecv(Ptr<Socket> socket) {
             + " expected sequence number "
             + m_sequenceNumber.to_string();
 
-        NS_LOG_DEBUG(message);
+        NS_TIMESTAMP_LOG_DEBUG(message);
     }
 
     //send ACK
@@ -100,11 +100,6 @@ void
 GbnReceiver::StopApplication()
 {
     m_running = false;
-
-    if (m_sendEvent.IsPending())
-    {
-        Simulator::Cancel(m_sendEvent);
-    }
 
     if (m_socket)
     {

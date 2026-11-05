@@ -47,6 +47,10 @@ SequenceNumber& SequenceNumber::operator=(const SequenceNumber& other) {
     return *this;
 };
 
+uint32_t SequenceNumber::distance(const SequenceNumber &other) const {
+    return (other - *this).getValue();
+}
+
 uint32_t SequenceNumber::getValue() const {
     return this->value;
 }

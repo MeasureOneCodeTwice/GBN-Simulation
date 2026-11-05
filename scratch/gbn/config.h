@@ -25,8 +25,9 @@ class GbnSenderConfig : GbnConfig {
         static constexpr std::string studentName = "Logan";
 
     public:
-        static const int retransmissionTimeoutMs = 100;
+        static constexpr std::string retransmissionTimeout = "100ms";
         static constexpr int windowSize = 5 + (GbnSenderConfig::studentId % 5);
+        static const int numPackets;
 
         static constexpr PacketPayload getPayloadContent() {
             const std::size_t nameLength = GbnSenderConfig::studentName.length();

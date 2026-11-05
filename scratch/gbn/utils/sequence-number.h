@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stdint.h>
-#include "./config.h"
+#include "../config.h"
 
 class SequenceNumber {
 
@@ -17,6 +17,10 @@ class SequenceNumber {
 
         SequenceNumber& operator=(const SequenceNumber& other);
         SequenceNumber& operator++(); //prefix increment
+
+        //where the other SequenceNumber is "further ahead" in the ring
+        //(e.g. this = m_baseSequenceNumber, other = m_nextSequenceNumber)
+        uint32_t distance(const SequenceNumber &other) const;
 
         std::string to_string() const;
         bool inWindow(const SequenceNumber windowStart, const SequenceNumber windowEnd) const;

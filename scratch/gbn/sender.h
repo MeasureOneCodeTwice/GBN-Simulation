@@ -2,7 +2,8 @@
 
 #include "ns3/applications-module.h"
 
-#include "./sequence-number.h"
+#include "./utils/sequence-number.h"
+#include "./utils/timed-queue.h"
 
 using namespace ns3;
 
@@ -16,16 +17,10 @@ class GbnSender : public Application {
 
     /**
      * Setup the socket.
-     * @param socket The socket.
      * @param address The destination address.
-     * @param packetSize The packet size to transmit.
      * @param nPackets The number of packets to transmit.
-     * @param dataRate the data rate to use.
      */
-    void Setup(Ipv4Address address,
-               uint32_t nPackets,
-               DataRate dataRate
-    );
+    void Setup(Ipv4Address address, uint32_t nPackets);
 
   private:
     void StartApplication() override;
@@ -33,23 +28,22 @@ class GbnSender : public Application {
 
     void OnRecv(Ptr<Socket> sock);
 
-    /// Schedule a new transmission.
-    void ScheduleTx(::SequenceNumber);
     /// Send a packet.
     void SendPacket(::SequenceNumber);
     // Sends all packets in the window from a given point
-    void SendPackets(::SequenceNumber from);
+    void SendPackets(::SequenceNumber from, uint32_t numPackets);
 
-    Ptr<Socket> m_socket;   //!< The transmission socket.
-    Address m_peer;         //!< The destination address.
-    uint32_t m_nPackets;    //!< The number of packets to send.
-    DataRate m_dataRate;    //!< The data rate to use.
-    EventId m_sendEvent;    //!< Send event.
-    bool m_running;         //!< True if the application is running.
-    uint32_t m_packetsSent; //!< The number of packets sent.
+    Ptr<Socket> m_socket;     //!< The transmission socket.
+    Address m_peer;           //!< The destination address.
+    uint32_t m_nPackets;      //!< The number of packets to send
+    uint32_t m_nPacketsSent;  //!< The number of packets to send
+    bool m_running;           //!< True if the application is running.
 
     ::SequenceNumber m_baseSequenceNumber; //!< Oldest un-acked packet
     ::SequenceNumber m_nextSequenceNumber; //!< Smallest unused sequence number
+
+    TimedQueue<::SequenceNumber> m_timeoutQueue;
+    void onTimeout(::SequenceNumber);
 
     struct Metrics {
         uint32_t totalPacketsTransmitted;

@@ -1,6 +1,7 @@
 #include "./sender.h"
 #include "./config.h"
-#include "./packet.h"
+#include "./utils/packet.h"
+#include "./utils/logging.h"
 
 #include "ns3/core-module.h"
 #include "ns3/internet-module.h"
@@ -14,17 +15,23 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("GbnSender");
 
+void GbnSender::onTimeout(::SequenceNumber sequenceNumber) {
+    assert(sequenceNumber == m_baseSequenceNumber);
+    this->SendPackets(this->m_baseSequenceNumber, GbnSenderConfig::windowSize);
+}
+
 //based on `examples/tutorial/tutorial-app.cc`
 GbnSender::GbnSender()
     : m_socket(nullptr),
       m_peer(),
       m_nPackets(0),
-      m_dataRate(0),
-      m_sendEvent(),
       m_running(false),
-      m_packetsSent(0),
       m_baseSequenceNumber(GbnConfig::initialSequenceNumber),
-      m_nextSequenceNumber(GbnConfig::initialSequenceNumber)
+      m_nextSequenceNumber(GbnConfig::initialSequenceNumber),
+      m_timeoutQueue(
+              [this](::SequenceNumber num){ this->onTimeout(num); },
+              GbnSenderConfig::retransmissionTimeout
+      )
 {
     assert(!::SequenceNumber(8).InWindow(9, 0));
 }
@@ -46,22 +53,16 @@ GbnSender::GetTypeId()
 }
 
 void
-GbnSender::Setup(Ipv4Address address,
-                 uint32_t nPackets,
-                 DataRate dataRate
-)
-{
+GbnSender::Setup(Ipv4Address address, uint32_t nPackets) {
     m_socket = Socket::CreateSocket(GetNode(), UdpSocketFactory::GetTypeId());
     m_peer = InetSocketAddress(address, ::GbnConfig::port);
     m_nPackets = nPackets;
-    m_dataRate = dataRate;
 }
 
 void
 GbnSender::StartApplication()
 {
     m_running = true;
-    m_packetsSent = 0;
     m_socket->Bind();
     m_socket->Connect(m_peer);
 
@@ -69,19 +70,13 @@ GbnSender::StartApplication()
         MakeCallback(&GbnSender::OnRecv, this)
     );
 
-    SendPackets(m_baseSequenceNumber);
+    SendPackets(m_baseSequenceNumber, GbnSenderConfig::windowSize);
 }
 
 void
 GbnSender::StopApplication()
 {
     m_running = false;
-
-    if (m_sendEvent.IsPending())
-    {
-        Simulator::Cancel(m_sendEvent);
-    }
-
     if (m_socket)
     {
         m_socket->Close();
@@ -90,26 +85,20 @@ GbnSender::StopApplication()
 
 
 
-void GbnSender::SendPackets(::SequenceNumber from) {
+void GbnSender::SendPackets(::SequenceNumber from, uint32_t numPackets) {
 
-    uint32_t count = 0;
-    ::SequenceNumber curr = from;
-    ::SequenceNumber end = m_baseSequenceNumber + GbnSenderConfig::windowSize;
-    std::string message =
-        + " sending packets from "
-        + curr.to_string()
-        + " to "
-        + end.to_string();
-    NS_LOG_DEBUG(message);
+    NS_TIMESTAMP_LOG_DEBUG(
+        "Sending packets from "
+        << from.to_string()
+        << " to "
+        << (from + numPackets).to_string();
+    );
 
-    assert(curr != end);
-    while(curr != end) {
-        ScheduleTx(curr);
-        ++curr;
-        ++count;
+    for(uint32_t i = 0; i < numPackets; i++) {
+        SendPacket(from + i);
     }
-    m_nextSequenceNumber = curr - 1;
-    m_metrics.totalPacketsTransmitted += count;
+    m_nextSequenceNumber = from + numPackets - 1;
+    m_metrics.totalPacketsTransmitted += numPackets;
 }
 
 void
@@ -120,15 +109,16 @@ GbnSender::SendPacket(const ::SequenceNumber sequenceNumber)
             GbnSenderConfig::getPayloadContent()
     ).Serialize();
 
-    std::string message =
+    NS_TIMESTAMP_LOG_DEBUG(
         "Sending packet with sequence number "
-        + sequenceNumber.to_string();
-    NS_LOG_DEBUG(message);
+        << sequenceNumber.to_string()
+    );
 
     m_socket->Send(packet);
 }
 
 void GbnSender::OnRecv(Ptr<Socket> sock) {
+    if(!m_running) return;
     assert(m_socket->GetRxAvailable());
 
     Ptr<Packet> packet = sock->Recv();
@@ -138,7 +128,7 @@ void GbnSender::OnRecv(Ptr<Socket> sock) {
 
     } catch(std::runtime_error& e) {
         std::string message = "Dropping packet due to parsing error: ";
-        NS_LOG_INFO(message + e.what());
+        NS_TIMESTAMP_LOG_INFO(message + e.what());
         return;
     }
 
@@ -147,53 +137,51 @@ void GbnSender::OnRecv(Ptr<Socket> sock) {
         m_nextSequenceNumber
     );
     if(outOfRangeSequenceNumber) {
-        std::string message =
-                "Dropping packet with sequence number outside of window ("
-                + gbnPacket.sequenceNumber.to_string()
-                + " is not in "
-                + m_baseSequenceNumber.to_string()
-                + " to "
-                + m_nextSequenceNumber.to_string()
-                + " mod "
-                + std::to_string(GbnConfig::maxSequenceNumber)
-                + ")";
-        NS_LOG_INFO(message);
+        NS_TIMESTAMP_LOG_DEBUG(
+            "Dropping packet with sequence number outside of window ("
+            << gbnPacket.sequenceNumber.to_string()
+            << " is not in "
+            << m_baseSequenceNumber.to_string()
+            << " to "
+            << m_nextSequenceNumber.to_string()
+            << " mod "
+            << std::to_string(GbnConfig::maxSequenceNumber)
+            << ")"
+        );
         return;
     }
 
-    std::string message =
+    NS_TIMESTAMP_LOG_DEBUG(
         "Received ack with sequence number "
-        + gbnPacket.sequenceNumber.to_string()
-        + ". Window: ["
-        + m_baseSequenceNumber.to_string()
-        + " -> "
-        + (m_baseSequenceNumber + GbnSenderConfig::windowSize - 1).to_string()
-        + "] (next: "
-        + m_nextSequenceNumber.to_string()
-        + ")";
-
-    NS_LOG_DEBUG(message);
+        << gbnPacket.sequenceNumber.to_string()
+        << ". Window: ["
+        << m_baseSequenceNumber.to_string()
+        << " -> "
+        << (m_baseSequenceNumber + GbnSenderConfig::windowSize - 1).to_string()
+        << "] (next: "
+        << m_nextSequenceNumber.to_string()
+        << ")";
+    );
 
     m_baseSequenceNumber = gbnPacket.sequenceNumber + 1;
-    SendPackets(m_nextSequenceNumber + 1);
 
-    message =
+    ::SequenceNumber txNext = m_nextSequenceNumber + 1;
+    //Send now available due to window shift
+    uint32_t packetsToSend = txNext.distance(m_baseSequenceNumber + GbnSenderConfig::windowSize);
+    //Respect application packet limit.
+    packetsToSend = std::min(packetsToSend, m_nPackets - m_nPacketsSent);
+
+    SendPackets(txNext, packetsToSend);
+    m_nPacketsSent += packetsToSend;
+    assert(m_nPacketsSent < m_nPackets);
+
+    NS_TIMESTAMP_LOG_DEBUG(
         "Window is now ["
-        + m_baseSequenceNumber.to_string()
-        + " -> "
-        + (m_baseSequenceNumber + GbnSenderConfig::windowSize - 1).to_string()
-        + "] (next: "
-        + m_nextSequenceNumber.to_string()
-        + ")";
-
-    NS_LOG_DEBUG(message);
-}
-
-void
-GbnSender::ScheduleTx(const ::SequenceNumber sequenceNumber)
-{
-    if (m_running)
-    {
-        m_sendEvent = Simulator::Schedule(Seconds(0), &GbnSender::SendPacket, this, sequenceNumber);
-    }
+        << m_baseSequenceNumber.to_string()
+        << " -> "
+        << (m_baseSequenceNumber + GbnSenderConfig::windowSize - 1).to_string()
+        << "] (next: "
+        << m_nextSequenceNumber.to_string()
+        << ")"
+    );
 }

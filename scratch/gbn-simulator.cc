@@ -55,8 +55,7 @@ main(int argc, char* argv[])
     nodes.Get(0)->AddApplication(sender);
     sender->Setup(
         interfaces.GetAddress(1),
-        ::SimulationConfig::numberOfDataPackets,
-        ::SimulationConfig::linkBandwidth
+        ::SimulationConfig::numberOfDataPackets
     );
 
     Ptr<GbnReceiver> receiver = CreateObject<GbnReceiver>();

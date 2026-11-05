@@ -1,5 +1,7 @@
+#pragma once
+
 #include "ns3/applications-module.h"
-#include "./config.h"
+#include "../config.h"
 #include "./sequence-number.h"
 
 using namespace ns3;

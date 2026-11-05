@@ -2,7 +2,7 @@
 
 #include "ns3/applications-module.h"
 
-#include "./sequence-number.h"
+#include "./utils/sequence-number.h"
 
 using namespace ns3;
 
@@ -26,7 +26,6 @@ class GbnReceiver : public Application {
 
     Ptr<Socket> m_socket;      //!< The transmission socket.
     bool m_running;            //!< True if the application is running.
-    EventId m_sendEvent;       //!< Send event.
     Ipv4Address m_bindAddress; //!< Address to bind socket to
     ::SequenceNumber m_sequenceNumber; //!< Sequence number of next expected packet.
 };

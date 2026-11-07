@@ -5,10 +5,11 @@
 #include <queue>
 using namespace ns3;
 
-//A queue with a timer that activates a callback and removes an item
+//A queue with a timer that activates a callback when item
 //when it expires.
-//If multiple items expire at the same time, a callback is called on the head
-//of the queue. No items are removed on expiry.
+//Items in the queue all have the same lifetime, so the queue expires 
+//front to back
+//The queue is not modified on item expiry.
 template<typename T>
 class TimedQueue
 {
